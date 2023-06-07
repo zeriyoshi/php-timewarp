@@ -1,7 +1,7 @@
-ARG_ENABLE('skeleton', 'skeleton support', 'no');
+ARG_ENABLE('timewarp', 'timewarp support', 'no');
 
-if (PHP_SKELETON != 'no') {
-	AC_DEFINE('HAVE_SKELETON', 1, 'skeleton support enabled');
+if (PHP_TIMEWARP != 'no') {
+	AC_DEFINE('HAVE_TIMEWARP', 1, 'timewarp support enabled');
 
-	EXTENSION('skeleton', 'skeleton.c', null, '/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1');
+	EXTENSION('timewarp', 'timewarp.c', null, '/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1');
 }
