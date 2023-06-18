@@ -28,8 +28,9 @@ extern zend_module_entry timewarp_module_entry;
 # define PHP_TIMEWARP_VERSION "0.0.1"
 
 ZEND_BEGIN_MODULE_GLOBALS(timewarp)
-	HashTable *ftable;
-	php_date_obj *fake;
+	HashTable *pdo_filter_map;
+  zend_object *intern;
+  zend_function *provider;
 ZEND_END_MODULE_GLOBALS(timewarp)
 
 ZEND_EXTERN_MODULE_GLOBALS(timewarp)

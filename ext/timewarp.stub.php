@@ -6,10 +6,17 @@ namespace TimeWarp;
 
 interface QueryReplacerInterface
 {
-    public function transform(string $query, ?\DateTimeInterface $now = \null): string; 
+    public function transform(string $query, ?\DateTimeInterface $now = \null): ?string; 
 }
 
-function timewarp_set(\DateTimeInterface $now): void {}
+interface ProviderInterface
+{
+    public function provide(string $datetime = 'now', ?\DateTimeZone $timezone = \null): \DateTimeInterface;
+}
+
+function timewarp_set(\TimeWarp\ProviderInterface $provider): void {}
+
+function timewarp_now(): ?\DateTimeInterface {}
 
 function timewarp_unset(): void {}
 

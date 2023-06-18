@@ -25,6 +25,7 @@
 
 #include "ext/date/php_date.h"
 #include "ext/pdo/php_pdo_driver.h"
+#include "ext/standard/php_var.h"
 
 #include "Zend/zend_hash.h"
 
@@ -34,58 +35,93 @@
 ZEND_DECLARE_MODULE_GLOBALS(timewarp);
 
 PHPAPI zend_class_entry *timewarp_ce_TimeWarp_QueryReplacerInterface;
+PHPAPI zend_class_entry *timewarp_ce_TimeWarp_ProviderInterface;
+
+static void timewarp_provider_cleanup(void)
+{
+	if (TIMEWARP_G(intern)) {
+		GC_DELREF(TIMEWARP_G(intern));
+		TIMEWARP_G(intern) = NULL;
+	}
+
+	TIMEWARP_G(provider) = NULL;
+}
+
+static bool timewarp_provider_provide_interface(zval *retval)
+{
+	if (!TIMEWARP_G(intern) || !TIMEWARP_G(provider)) {
+		return false;
+	}
+
+	zend_call_known_instance_method_with_0_params(
+		TIMEWARP_G(provider),
+		TIMEWARP_G(intern),
+		retval
+	);
+
+	return true;
+}
 
 PHP_FUNCTION(TimeWarp_timewarp_set)
 {
-	zend_object *obj = NULL;
+	zend_object *intern = NULL;
+	zend_function *provider = NULL;
+	zend_string *method_name = NULL;
 
 	ZEND_PARSE_PARAMETERS_START(1, 1)
-		Z_PARAM_OBJ_OF_CLASS(obj, php_date_get_interface_ce())
+		Z_PARAM_OBJ_OF_CLASS(intern, timewarp_ce_TimeWarp_ProviderInterface)
 	ZEND_PARSE_PARAMETERS_END();
 
-	TIMEWARP_G(fake) = php_date_obj_from_obj(obj);
+	method_name = ZSTR_INIT_LITERAL("provide", 0);
+	provider = zend_hash_find_ptr(&intern->ce->function_table, method_name);
+	zend_string_release(method_name);
+	if (UNEXPECTED(!provider)) {
+		/* TODO: Illeg */
+		return;
+	}
+
+	timewarp_provider_cleanup();
+
+	GC_ADDREF(intern);
+	TIMEWARP_G(intern) = intern;
+	TIMEWARP_G(provider) = provider;
+}
+
+PHP_FUNCTION(TimeWarp_timewarp_now)
+{
+	ZEND_PARSE_PARAMETERS_NONE();
+
+	if (!timewarp_provider_provide_interface(return_value)) {
+		RETURN_NULL();
+	}
 }
 
 PHP_FUNCTION(TimeWarp_timewarp_unset)
 {
-	TIMEWARP_G(fake) = NULL;
-
 	ZEND_PARSE_PARAMETERS_NONE();
+
+	timewarp_provider_cleanup();
 }
 
 PHP_FUNCTION(TimeWarp_pdo_register_query_replacer)
 {
-	zend_string *drv = NULL;
-	zend_object *obj = NULL;
-	zend_function *transform = NULL, *cur = NULL;
-	HashTable *tbl;
+	zend_string *driver_name = NULL;
+	zend_object *intern = NULL;
 
 	ZEND_PARSE_PARAMETERS_START(2, 2)
-		Z_PARAM_STR(drv)
-		Z_PARAM_OBJ_OF_CLASS(obj, timewarp_ce_TimeWarp_QueryReplacerInterface)
+		Z_PARAM_STR(driver_name)
+		Z_PARAM_OBJ_OF_CLASS(intern, timewarp_ce_TimeWarp_QueryReplacerInterface)
 	ZEND_PARSE_PARAMETERS_END();
-
-	// transform = zend_hash_find_ptr(&obj->ce->function_table, ZSTR_INIT_LITERAL("transform", true));
-	// ZEND_ASSERT(transform != NULL);
-
-	// tbl = zend_hash_find_ptr(TIMEWARP_G(ftable), drv);
-	// if (tbl == NULL) {
-	// 	zend_hash_add_empty_element(TIMEWARP_G(ftable), drv);
-	// 	tbl = zend_hash_find_ptr(TIMEWARP_G(ftable), drv);
-	// }
-
-	// zend_hash_next_index_insert_ptr(tbl, transform);
 }
 
 PHP_FUNCTION(TimeWarp_pdo_unregister_query_replacer)
 {
-	zend_string *drv = NULL;
-	zend_object *obj = NULL;
-	zend_function *transform = NULL;
+	zend_string *driver_name = NULL;
+	zend_object *intern = NULL;
 
 	ZEND_PARSE_PARAMETERS_START(2, 2)
-		Z_PARAM_STR(drv)
-		Z_PARAM_OBJ_OF_CLASS(obj, timewarp_ce_TimeWarp_QueryReplacerInterface)
+		Z_PARAM_STR(driver_name)
+		Z_PARAM_OBJ_OF_CLASS(intern, timewarp_ce_TimeWarp_QueryReplacerInterface)
 	ZEND_PARSE_PARAMETERS_END();
 }
 
@@ -105,15 +141,17 @@ PHP_MINIT_FUNCTION(timewarp)
 {
 	/* \TimeWarp\QueryReplacerInterface */
 	timewarp_ce_TimeWarp_QueryReplacerInterface = register_class_TimeWarp_QueryReplacerInterface();
+	/* \TimeWarp\ProviderInterface */
+	timewarp_ce_TimeWarp_ProviderInterface = register_class_TimeWarp_ProviderInterface();
 }
 /* }}} */
 
 /* {{{ PHP_GINIT_FUNCTION */
 PHP_GINIT_FUNCTION(timewarp)
 {
-	timewarp_globals->fake = NULL;
-	ALLOC_HASHTABLE(timewarp_globals->ftable);
-	zend_hash_init(timewarp_globals->ftable, 1, NULL, NULL, 1);
+	ALLOC_HASHTABLE(timewarp_globals->pdo_filter_map);
+	zend_hash_init(timewarp_globals->pdo_filter_map, 1, NULL, NULL, 1);
+	timewarp_globals->provider = NULL;
 }
 /* }}} */
 
